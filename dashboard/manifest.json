@@ -1,0 +1,12 @@
+{
+  "name": "agent-wallet",
+  "label": "Wallet",
+  "description": "Approval-gated crypto wallet for agents: pending requests, auto-pay mandates, signed receipts and the passphrase gate.",
+  "icon": "CreditCard",
+  "version": "0.3.0",
+  "tab": {
+    "path": "/wallet",
+    "hidden": true
+  },
+  "api": "plugin_api.py"
+}

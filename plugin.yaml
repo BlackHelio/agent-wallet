@@ -1,0 +1,47 @@
+name: agent-wallet
+version: 0.3.0
+description: >-
+  Approval-gated wallet for agents: XMR, BTC and XRP by default, with ETH/POL/USDC one toggle away.
+  The agent can request a payment or an auto-pay
+  mandate, but only a human operator can approve it, and no key material ever enters the Hermes
+  process: an isolated signer daemon (walletd) holds an encrypted keystore, enforces spend policy,
+  and writes Ed25519-signed, hash-chained receipts. Ships a native Desktop pane for approvals,
+  mandates, ledger and the passphrase prompt.
+author: BlackHelio
+license: MIT
+requires_hermes: ">=0.21.0"
+python_dependencies:
+  - "pynacl>=1.5,<2"
+  # in-process signing for EVM (secp256k1 + EIP-1559) and Bitcoin (p2wpkh witness)
+  - "eth-account>=0.13,<0.14"
+  # imported directly by chains/xrp.py to derive a secp256k1 public key; it ships with eth-account
+  # today, which is a transitive we should not be relying on
+  - "eth-keys>=0.5,<0.8"
+  - "embit>=0.8,<0.9"
+manifest_version: 2
+provides_tools:
+  - wallet_merchants
+  - wallet_contact_save
+  - wallet_contacts
+  - wallet_sandboxes
+  - wallet_nodes
+  - wallet_chains
+  - wallet_status
+  - wallet_balances
+  - wallet_pay_url
+  - wallet_receive_address
+  - wallet_incoming
+  - wallet_cancel
+  - wallet_spend
+  - wallet_verify_payment
+  - wallet_request_approval
+  - wallet_request_payment
+  - wallet_request_unlock
+  - wallet_mandate_propose
+  - wallet_mandate_list
+  - wallet_mandate_revoke
+  - wallet_ledger
+  - wallet_receipt_verify
+provides_hooks:
+  - pre_tool_call
+  - pre_llm_call
