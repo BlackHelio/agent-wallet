@@ -1,0 +1,33 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: unit tests (offline — no chain calls)
+        run: python -m unittest discover -s tests -t .
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: desktop half parses
+        run: node --check desktop/plugin.js
+      - name: desktop page renders (stubbed SDK + React)
+        run: node desktop/render-check.mjs ./desktop/plugin.js
+      - name: catalog gate (skipped when hermes is not installed)
+        run: |
+          if command -v hermes >/dev/null 2>&1; then
+            hermes plugins validate .
+          else
+            echo "hermes not on PATH — validate skipped"
+          fi

@@ -1,0 +1,51 @@
+name: agent-wallet
+version: 0.9.2
+description: >-
+  Approval-gated wallet for agents: XMR, BTC and XRP by default, with ETH/POL/USDC one toggle away.
+  The agent can ask to pay, propose an autopay or ask for a capped budget, but nothing is signed until
+  a human types a six-digit PIN on a card that shows the exact destination, amount, fee and fiat value;
+  no key material ever enters the Hermes process (an isolated daemon holds an encrypted keystore and
+  enforces the caps) and every decision, refusals included, lands in an Ed25519-signed, hash-chained
+  receipt ledger. Ships a native Desktop pane for approvals, autopays, budgets, receipts and QR
+  deposits.
+author: BlackHelio
+license: MIT
+requires_hermes: ">=0.21.0"
+python_dependencies:
+  - "pynacl>=1.5,<2"
+  # in-process signing for EVM (secp256k1 + EIP-1559) and Bitcoin (p2wpkh witness)
+  - "eth-account>=0.13,<0.14"
+  # imported directly by chains/xrp.py to derive a secp256k1 public key; it ships with eth-account
+  # today, which is a transitive we should not be relying on
+  - "eth-keys>=0.5,<0.8"
+  # imported directly for keccak and checksum casing; ships with eth-account, same reasoning as above
+  - "eth-utils>=2.1,<6"
+  - "embit>=0.8,<0.9"
+manifest_version: 2
+provides_tools:
+  - wallet_merchants
+  - wallet_contacts
+  - wallet_contact_save
+  - wallet_deposits
+  - wallet_sandboxes
+  - wallet_request_sandbox
+  - wallet_orders
+  - wallet_close_order
+  - wallet_readiness
+  - wallet_nodes
+  - wallet_status
+  - wallet_balances
+  - wallet_pay_url
+  - wallet_receive_address
+  - wallet_cancel
+  - wallet_spend
+  - wallet_ledger
+  - wallet_verify_payment
+  - wallet_request_approval
+  - wallet_request_payment
+  - wallet_mandate_propose
+  - wallet_mandate_list
+  - wallet_mandate_revoke
+provides_hooks:
+  - pre_tool_call
+  - pre_llm_call

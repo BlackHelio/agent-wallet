@@ -1,0 +1,8 @@
+# Runtime dependencies. Mirrors plugin.yaml `python_dependencies` (docs/CATALOG-COMPLIANCE.md rule 10:
+# bounded ranges). Keep the two in step - an install from this file must be able to derive a BTC and
+# an XRP address, not just boot the daemon.
+pynacl>=1.5,<2
+eth-account>=0.13,<0.14
+eth-keys>=0.5,<0.8
+eth-utils>=2.1,<6
+embit>=0.8,<0.9
