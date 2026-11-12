@@ -115,9 +115,10 @@ confirm, and records the export in the ledger without the words.
 - A sandbox's profile allow-list is enforced against the profile name the caller declares. It stops a
   misconfigured agent; it does not stop a hostile process running as the same uid (see HARDENING.md -
   the OS user is the boundary).
-- The signer's RPC password is passed as `--rpc-login` on the command line, so it is visible in
-  `/proc/<pid>/cmdline` to the same uid. `monero-wallet-rpc` has no other form; 0600 `wallet.env`
-  remains the least-exposed path.
+- The signer's RPC password lives in `<wallet home>/signer.conf` (0600) and is passed as
+  `--config-file`, so it is no longer in `/proc/<pid>/cmdline` — but it is still readable by
+  any process running as this uid, and so is the signer. That is the open XMR item in
+  `docs/THREAT-MODEL.md`; a second uid is the fix.
 
 ## After a Hermes update, run the check
 

@@ -56,7 +56,7 @@ legal/KYC question. Saying so is part of being honest, not a gap.
 | T1 — a funded sandbox is redirected by a forged "blessing" | A contact saved *as the operator* is what blesses a destination, and creating one used to cost nothing — so an agent holding the operator token could mint a blessing to its own address and a funded sandbox would auto-pay it. Creating an operator contact now requires the passphrase, and an unknown scope fails closed to `agent`. Reproduced and closed | v0.5.1 |
 | T1 — agent creates itself an unlimited mandate | `mandates_propose` only; `mandates_activate` is operator-only; every mandate has absolute cap + expiry | v0.1 |
 | T1 — agent exfiltrates the key | No agent-scope method returns secret material; response scan test rejects long hex/word runs; `walletd` redacts logs; `export_seed` has no agent route at all | v0.1 |
-| T1 — agent bypasses policy by calling the chain directly | **Bitcoin/EVM:** it has no key; keys live in `walletd` and are signed in-process. **Monero: not closed.** The signer is a `monero-wallet-rpc` running as the *same uid* as the agent, so a shell can read `wallet.env` (0600, same user) and POST `transfer` / `query_key` to loopback — past the policy engine and the PIN. Verified against the real binary: `--restricted-rpc` blocks `transfer` too, so it is not an option. The fix is a second uid (systemd `User=` under root), which the plugin cannot do for itself | **open on XMR** |
+| T1 — agent bypasses policy by calling the chain directly | **Bitcoin/EVM:** it has no key; keys live in `walletd` and are signed in-process. **Monero: not closed.** The signer is a `monero-wallet-rpc` running as the *same uid* as the agent, so a shell can read `signer.conf` (0600, same user) and POST `transfer` / `query_key` to loopback — past the policy engine and the PIN. Verified against the real binary: `--restricted-rpc` blocks `transfer` too, so it is not an option. The fix is a second uid (systemd `User=` under root), which the plugin cannot do for itself | **open on XMR** |
 | T1 — agent pays through a *different* payment plugin | `pre_tool_call` blocks (a) known foreign pay tools, (b) **any tool whose name says pay/send/transfer/spend/checkout…**, and (c) shell-class tools whose arguments drive `hermes wallet approve/request/pay-url/sandbox` or the signer's `/json_rpc`. It is **advisory**: the boundary is the daemon + PIN, and a same-uid shell can still reach the signer (see the row below) | v0.5.1 |
 | T2 — another plugin steals the agent token | Token file `0600` in the runtime dir; a foreign process still only gets `agent` scope, which cannot approve or unlock | v0.1 |
 | T2 — another plugin calls `approve` | No operator token outside `plugin_api.py`; approval also requires an unlocked wallet | v0.1 |
@@ -65,7 +65,7 @@ legal/KYC question. Saying so is part of being honest, not a gap.
 | T4 — local user reads the keystore | scrypt (n=2^15) + XChaCha20-Poly1305; `0600`; no key in the plugin dir, no key in `.env`, no key in git | v0.1 |
 | T4 — local user connects to the socket | `0600` socket + peer-uid check; tokens per boot | v0.1 |
 | T5 — replay of an approval | Single-use nonce, TTL, hash binding | v0.1 |
-| T5 — MITM on chain RPC | TLS endpoints tried first (`stackwallet`, then `cakewallet`, which is plaintext and therefore lets a path observer see which outputs were queried); tx hash re-read from the RPC before reporting success | v0.1, one plaintext fallback |
+| T5 — MITM on chain RPC | Every Monero endpoint is TLS (`stackwallet`, `cakewallet`) and there is no cleartext fallback anywhere — not in the registry, not in the signer's node choice: a plaintext node lets a path observer see which outputs you queried, and a hostile one can lie about heights and balances; tx hash re-read from the RPC before reporting success | v0.9.3 (was: one plaintext fallback) |
 | T5 — tampered ledger | Hash chain + Ed25519; verify fails at the first break. **Truncation** is caught by the anchor — including in the standalone `walletd verify`, which ignored it until a reviewer showed a wiped tail passing as `ok` | v0.5.1 |
 | T6 — dependency turns hostile | Two crypto deps, both floors+upper bounds, `uv --exclude-newer` in CI, no vendored binaries (catalog rule 17) | v0.1 |
 | T6 — plugin self-updates into something else | No self-updater. Updates only via catalog SHA bump | v0.1 (absence is the control) |
@@ -77,13 +77,18 @@ legal/KYC question. Saying so is part of being honest, not a gap.
 - **Monero's signer shares the agent's uid — this is the one hole a red team actually walked
   through.** Every other chain's key is inside `walletd`'s sealed payload; XMR's spend key is in
   `monero-wallet-rpc`'s own wallet file, reachable over loopback with a password the same user can
-  read (`wallet.env`, 0600, and `--rpc-login` in `ps`). Verified end to end: read the credentials,
+  read (`signer.conf`, 0600, passed as `--config-file` so it is not in `ps` — but 0600 to the
+  same uid is still readable by that uid). Verified end to end: read the credentials,
   POST `query_key` and get the **25-word seed** back, and POST `transfer` to reach the signer's spend
   path with no PIN, no passphrase and no policy. Nothing in `walletd` can close this; only a second
   uid can (`systemd` `User=`), and a direct signer transfer leaves **no receipt** — the ledger proves
   what `walletd` did, not what the signer did. The PIN is a control against a
   confused or injected *agent*, not against a shell on this host — say that plainly instead of
   implying the key is unreachable.
+- **An armed budget or autopay signs without a per-payment PIN.** Handing a sandbox over
+  (`sandbox unattended`) or waiving the PIN on an autopay is a deliberate trade: one
+  passphrase+PIN act, then capped, receipted spending with no human in the loop. It is not
+  "nothing is signed without a PIN" — the PIN gates *manual* payments.
 - A human can be socially engineered into approving. The mitigation is the decoded summary, the
   typed-amount confirmation above a threshold, and receipts that survive the mistake.
 - The ledger proves *what this wallet did*, not that the counterparty is honest. Reputation and

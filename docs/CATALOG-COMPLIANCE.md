@@ -6,7 +6,7 @@ numbers follow `plugin-catalog/README.md` in `NousResearch/hermes-agent` at the 
 | Rule | Requirement | Our answer |
 |---|---|---|
 | 1 | Public `https`-cloneable GitHub/GitLab repo | Forgejo is the working source of truth; a public GitHub mirror is pushed before submission and the catalog pins that repo |
-| 2 | Full 40-char SHA pin | `plugin-catalog/agent-wallet.yaml` pins the full 40-hex commit of the public mirror that these docs and the 617-test suite were verified at; `version` is `0.9.2` and matches `plugin.yaml` |
+| 2 | Full 40-char SHA pin | `plugin-catalog/agent-wallet.yaml` pins the full 40-hex commit of the public mirror that these docs and the 628-test suite were verified at; `version` is `0.9.3` and matches `plugin.yaml` |
 | 3 | No self-updating code | No updater, no "check for updates", no remote code loading. The pane shows the installed version as read-only text |
 | 4 | SHA bumps are new PRs | Documented in the PR body: a new SHA is a new PR, never an amend |
 | 5 | Owner or major contributor submits | BlackHelio, sole author |

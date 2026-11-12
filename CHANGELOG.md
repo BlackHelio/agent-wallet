@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.9.3 — the review delta (child processes, and what the PIN does not cover)
+
+A catalog review at `524e5872` found that the daemon's protection was described more broadly than it
+is, and that the processes around it inherited more than they need. Both are fixed; the description
+is now narrower and true.
+
+- **`walletd` is started with an explicit minimal environment.** `wallet/daemon.py` used
+  `dict(os.environ)` for both the `init` and the `serve` spawn, so the daemon — and everything it
+  later starts — inherited every provider key the agent held. It now gets an allow-list
+  (PATH, HOME, PYTHONPATH, TMPDIR, `HERMES_HOME`/`HERMES_PROFILE`/`AGENT_WALLET_HOME`, `XDG_*`, plus
+  the wallet's own `AGENT_WALLET_*`/`WALLETD_*` settings), the same shape `wallet/service.py` already
+  gave the systemd unit. `WALLETD_PASSPHRASE`/`WALLETD_PIN` reach `init` only; a `serve` child never
+  inherits them.
+- **The vendor signer gets `PATH` and `HOME`, nothing else** — in `spawn()`, `preflight()` and
+  `status()`. A 120 MB Monero binary had no business holding the agent's API keys.
+- **The signer's RPC login is no longer in argv.** `--rpc-login user:pass` was visible in
+  `/proc/<pid>/cmdline` to every local user for the life of the process. All signer options now live
+  in `<wallet home>/signer.conf` (0600 from the first byte, atomic replace) and the command line is
+  `[binary, --config-file, path]`. Verified against the real 0.18.5.4 binary: Digest auth 200 with the
+  file's login, 401 with a wrong one, and no credential in `argv`. Same-uid readability of the file
+  is unchanged — that hole is the open XMR item, not something a flag can close.
+- **The protection is described as it is.** `plugin.yaml` and the README no longer imply that nothing
+  is signed without a PIN: an armed sandbox budget or an `unattended` autopay signs unattended
+  (capped, receipted, no per-payment PIN), and while the wallet is unlocked a process running as the
+  same user — including the agent's own terminal — can reach the Monero signer directly. That was
+  already in `docs/THREAT-MODEL.md`; it is now in the two places a reader actually starts from.
+- **No cleartext Monero node anywhere.** `cakewallet` is HTTPS, and the signer's "no probe answered"
+  fallback is the first registry entry instead of a hardcoded `http://` URL — a plaintext node can
+  spoof heights and balances, and the fallback bypassed the registry's TLS rule entirely.
+- **Docs that said the login was in `ps`** (`THREAT-MODEL.md`, `UPDATE-SAFETY.md`, the 2026-11-05
+  review record) now say what is true, and the README's "no public mirror yet" note is gone: the
+  mirror is public and the catalog PR is open.
+
 ## 0.9.2 — a page you can leave open
 
 The pane is the operator's page; this release is about what it does *not* show, plus a way to watch a

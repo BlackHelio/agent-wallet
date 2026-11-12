@@ -1118,8 +1118,10 @@ def _demo_402(passphrase: str, args: argparse.Namespace) -> int:
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     sock.close()
+    # The throwaway seller is a stdlib HTTP server: it needs a PATH and a HOME, not the agent's keys.
     seller = subprocess.Popen([sys.executable, str(script), str(port)],
-                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                              env=daemon.child_env())
     try:
         banner = seller.stdout.readline().strip() if seller.stdout else ""
         print(f"   seller    {banner or f'listening on {port}'}")

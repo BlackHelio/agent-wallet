@@ -27,7 +27,7 @@ Then open the PR from the fork.
 ## PR title
 
 ```
-agent-wallet: approval-gated wallet (XMR/BTC/XRP) where every payment needs the human's PIN
+agent-wallet: approval-gated wallet (XMR/BTC/XRP) where manual payments need the human's PIN
 ```
 
 ## PR body
@@ -49,12 +49,16 @@ The two sentences it exists for:
 
 ### The gate
 
-Every payment asks for a six-digit PIN, typed in the pane, on the card that states the amount and the
-payee. The PIN is scrypt-hashed inside the sealed keystore payload, verified only in the daemon, bound
-to the card (`expect_amount`/`expect_payee`), counted and locked out (5 → 30 s → 2 min → 10 min → 1 h,
-persisted, MAC'd so a reset reads as a lockout). Budgets and autopays relax *who decides the amount*,
-never the human's confirmation of the destination; the single exception is an autopay an operator marks
-`unattended`, which costs the passphrase and the PIN.
+Every **manual** payment asks for a six-digit PIN, typed in the pane, on the card that states the
+amount and the payee. The PIN is scrypt-hashed inside the sealed keystore payload, verified only in
+the daemon, bound to the card (`expect_amount`/`expect_payee`), counted and locked out (5 → 30 s →
+2 min → 10 min → 1 h, persisted, MAC'd so a reset reads as a lockout). Two deliberate exceptions, so
+the description is not broader than the protection: a sandbox budget a human **hands over**
+(`sandbox unattended`) and an autopay an operator marks `unattended` each cost the passphrase *and*
+the PIN once, and then spend inside their caps with no per-payment PIN — capped and receipted, not
+PIN-confirmed. And because the Monero signer runs as the same OS user, a process running as that user
+(the agent's own terminal included) can reach it directly while the wallet is unlocked; that is the
+open XMR item in `docs/THREAT-MODEL.md`, not something the PIN can close.
 
 ### Try it
 
@@ -74,7 +78,7 @@ hermes wallet demo            # keystore, signer download, simulated payment, si
 - `wallet/` — the plugin half: 26 tools, `hermes wallet …` CLI, thin UDS client.
 - `desktop/plugin.js` — the pane (payment card, deposit QR, contacts, sandboxes, receipts).
 - `dashboard/plugin_api.py` — the pane's backend, 52 routes, operator token held server-side.
-- `tests/` — 386 tests, no network: real policy engine, adversarial battery, PIN gate, invoice parsing,
+- `tests/` — 628 tests, no network: real policy engine, adversarial battery, PIN gate, invoice parsing,
   QR cross-check against an independent encoder.
 
 ### Checklist

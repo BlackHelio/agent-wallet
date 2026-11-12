@@ -28,7 +28,7 @@ python3 scripts/spec_check.py    # expect: 21/21
 python3 scripts/rehearse.py      # expect: 17/17
 python3 scripts/pane_probe.py    # expect: 15/15
 python3 scripts/qr_check.py      # expect: 49 checks, 0 mismatches
-python3 -m unittest discover -s tests -t .   # expect: 542 tests OK
+python3 -m unittest discover -s tests -t .   # expect: 628 tests OK
 ```
 
 The scan is a **caution**, not `safe`: the keyword rule rates the coin's name beside an ordinary verb

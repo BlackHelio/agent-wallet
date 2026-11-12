@@ -18,10 +18,10 @@ from .base import ChainError
 # Order matters: first healthy wins.
 REGISTRY: Dict[str, List[Dict[str, str]]] = {
     "monero-mainnet": [
-        # TLS first: a cleartext node tells anyone on the path which outputs you asked about, and the
-        # registry is ordered "first healthy wins"
+        # TLS only: a node is the wallet's view of the chain, so a cleartext one lets anyone on the
+        # path see which outputs you queried — and a hostile node can lie about heights and balances.
         {"label": "stackwallet", "url": "https://monero.stackwallet.com:18081", "proto": "monero"},
-        {"label": "cakewallet", "url": "http://xmr-node.cakewallet.com:18081", "proto": "monero"},
+        {"label": "cakewallet", "url": "https://xmr-node.cakewallet.com:18081", "proto": "monero"},
     ],
     "monero-stagenet": [
         {"label": "rino-stagenet", "url": "https://stagenet.community.rino.io:38081", "proto": "monero"},

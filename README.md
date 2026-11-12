@@ -7,6 +7,19 @@ money goes, a capped budget can be delegated, and every decision — approved *o
 tamper-evident receipt chain. Keys live in a separate daemon the agent cannot read, run or approve
 through.
 
+Two qualifications belong in the same breath as that headline, because the protection is narrower
+than "nothing is signed without a PIN":
+
+- **A budget or autopay a human *armed* signs without a per-payment PIN.** Handing over a sandbox
+  budget (`sandbox unattended`, or **Hand it over** in the pane) costs the passphrase and the PIN
+  once; after that the agent spends inside the cap, unattended. An autopay marked `unattended` is the
+  same trade: capped, receipted, no PIN per payment. The PIN authorises *manual* payments.
+- **While the wallet is unlocked, any process running as your user can reach the Monero signer
+  directly** — including the agent's own terminal — past the caps and past the PIN. That is a
+  property of Monero's signer running as you, not a bug we can close in-process; see
+  [The one security caveat](#the-one-security-caveat-worth-reading-before-you-fund-it) and
+  `docs/THREAT-MODEL.md`.
+
 ```
 $ hermes wallet status
    ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄
@@ -16,8 +29,10 @@ $ hermes wallet status
    ▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀▀   XMR/BTC/XRP
 
   wallet     unlocked (locks in 15m)
-  coins      XMR, BTC, XRP          chains  Monero, Bitcoin, XRP
-  signer     ready                  gate    PIN on every payment
+  coins      XMR  BTC  XRP
+  chains     Monero, Bitcoin, XRP
+  signer     ready
+  gate       passphrase prompt on
   caps       BTC 0.001, XMR 0.5, XRP 50
   pending    0   autopays 0   6 archive(s)
 ```
@@ -68,9 +83,9 @@ above a budget they granted.
 
 | Capability | Detail |
 |---|---|
-| **Human gate** | A six-digit PIN is typed in the Desktop page (or TTY): it unlocks the keystore *and* authorises each manual payment — an agent that finds the operator token on disk still cannot approve. The pane shows nothing but the unlock gate while locked. The passphrase is the stronger key and the recovery secret: the way in when the PIN is locked out or the wallet was restored on another machine, and the only way to change the PIN. |
+| **Human gate** | A six-digit PIN is typed in the Desktop page (or TTY): it unlocks the keystore *and* authorises each **manual** payment — an agent that finds the operator token on disk still cannot approve. A payment an armed budget or an `unattended` autopay makes is not PIN-confirmed; it is capped and receipted instead (see the two qualifications at the top). The pane shows nothing but the unlock gate while locked. The passphrase is the stronger key and the recovery secret: the way in when the PIN is locked out or the wallet was restored on another machine, and the only way to change the PIN. |
 | **Spend policy** | Per-asset per-tx and daily caps, payee allowlist, chain allowlist, approval threshold with typed-amount confirmation. Enforced in the signer, not in the plugin. |
-| **Standing approvals ("auto-pay")** | Capped per payment, per interval and lifetime, expiring, payee-exact. The agent may propose, pause and revoke; only a human activates, and every payment inside the caps still comes from an agent request — there is no timer that spends on its own, so "pay rent monthly" means the agent asks each month and the caps decide. |
+| **Standing approvals ("auto-pay")** | Capped per payment, per interval and lifetime, expiring, payee-exact. The agent may propose, pause and revoke; only a human activates, and every payment inside the caps still comes from an agent request — there is no timer that spends on its own, so "pay rent monthly" means the agent asks each month and the caps decide. The operator-only `unattended` waiver (it costs the passphrase *and* the PIN once) is the exception to the PIN-per-payment rule: from then on those payments are capped and receipted, not PIN-confirmed. |
 | **Sandboxes** | A real sub-account funded once with a budget a human approves. The agent can ask for one (`wallet_request_sandbox`): the sandbox is created **unfunded** and the funding transfer stays pending until the operator approves it, so asking never gives the agent spending room. By default it may spend inside it **only to a destination a human already blessed**, and every such payment still asks for the PIN. A human can also *hand the budget over* (`sandbox unattended`, or **Hand it over** in the pane): that costs the passphrase and the PIN once, and from then on the agent pays **any address** from that budget, without asking, until the money or the clock runs out — the ceiling is the containment, the main wallet is untouched, and asking for more means a fresh PIN. Narrowing `--pay-to` still wins over the hand-over. A sandbox auto-pays only addresses in its `allowed_payees` (`sandbox create --pay-to`) or saved as a contact *by a human*; anything else is filed for approval. An agent's own proposal cannot name payees or profiles (they are dropped and reported as `ignored`), `mode="pooled"` is refused on chains that can hold a real account (a pooled budget there would arm an account no sweep would empty), revoking cancels a pending funding request, a closed or expired budget cannot be re-armed by a late approval, and only an operator can sweep. It stops at `budget - spent - fee` (the fee is charged to the budget), at expiry, or on revoke, which returns the remainder. Status is one of `active`, `expired`, `unfunded`, `revoked` or `destroyed`; every row also carries `revoked_at`, `was_destroyed_with`, and the sub-account's real balance (`live_balance`, with `live_balance_state` = `live` / `locked` / `unavailable` / `unsupported` and `live_balance_error` saying why it could not be read). Optionally restricted to named Hermes profiles. `docs/SANDBOX-DESIGN.md` explains why this is the security story: on Monero the money physically left the main account, so a hijacked agent can spend a budget, not the wallet; on Bitcoin and the other account-less chains the sandbox is a *pooled* budget enforced against the main account (no transfer, no confirmation wait) — containment there is policy, not custody. |
 | **Receipts** | Ed25519-signed, hash-chained, offline-verifiable (`hermes wallet verify`), and anchored so a truncated chain is detected. A denial is a receipt with the rule and the numbers that refused it. While the wallet is locked there is no ledger to append to, so the refusal is queued in memory and written on the next unlock marked `deferred` — it is delayed, never lost. |
 | **Coin preference** | `prefer_monero` (**off by default**): turn it on and an *agent-filed* payment in another coin is refused with `prefer_monero_needs_reason` unless it states why — and that reason is stored on the request and in the receipt, so exceptions are visible rather than routine. Operator approvals, sweeps and sandbox funding are exempt; `pay_url` gets no free pass either. Toggle in Settings, or `hermes wallet config set --json '{"prefer_monero": true}'` (passphrase-protected). |
@@ -84,7 +99,9 @@ above a budget they granted.
 ## Install
 
 ```bash
-# This tree is not published to a public mirror yet: install from a clone or a copy you already have.
+# From the public mirror (the commit the catalog entry pins):
+hermes plugins install BlackHelio/agent-wallet
+# ...or from a clone you already have:
 cd agent-wallet
 
 # Local checkouts need the `file://` form: a bare path is parsed as `owner/repo` and Hermes tries to
@@ -409,7 +426,7 @@ python3 scripts/qr_check.py       #  49 checks: the pane's inline QR encoder, ce
 python3 scripts/secret_scan.py    # patterns + entropy, and (--history) every blob ever committed
 python3 scripts/demo_stage.py     # stages a wallet for recording: contact, USDC, a receipt, a live
                                   #   402 quote — and prints a recording sheet
-python3 -m unittest discover -s tests -t .   # 542 tests
+python3 -m unittest discover -s tests -t .   # 628 tests
 ```
 
 `scripts/spec_check.py` is the one to run first: it calls the same 23 tools the model calls, in the
@@ -536,7 +553,10 @@ the plugin directory — `hermes plugins remove agent-wallet` deletes code, not 
 
 ## Status
 
-`0.9.2` — the pane is a PIN page until it is unlocked and a three-step setup card on a first run, the
+`0.9.3` — the review delta: `walletd` and the vendor signer get an explicit minimal environment, the
+signer's RPC login moved to a 0600 `signer.conf` (`--config-file`, no longer in `ps`), every
+Monero endpoint is HTTPS with no cleartext fallback, and `plugin.yaml`/README state what the PIN
+does not cover (armed budgets/autopays, and the same-uid signer path); `0.9.2` — the pane is a PIN page until it is unlocked and a three-step setup card on a first run, the
 Orders/Receiving and Deposit/Contacts sections are off it (the operator ops `orders_purge`,
 `requests_purge` and `sandbox_purge` clean up what they left behind), `prefer_monero` ships off, and
 `scripts/live_view.py` watches a payment land; `0.9.1` — the PIN is bound to the machine (scrypt(n=2^19)
@@ -578,21 +598,25 @@ MIT.
 > pid it is about to stop is *this* wallet home's daemon and not another profile's. It reads, never
 > writes, and `ps`/`psutil` are the fallbacks on platforms without `/proc`. Documented in
 > `docs/CATALOG-COMPLIANCE.md`. `hermes plugins install` still asks you to confirm a caution verdict — that is what
-> `--force` is for. The suite is 522 tests, `render-check: OK`, `qr-check: 49 checks, 0 mismatches`,
-> `scripts/spec_check.py` 21/21. **There is no public mirror right now**: the catalog entry is
-> prepared and on hold by the owner's decision (`docs/PUBLISHING.md`), so install from a clone you
-> already have.
+> `--force` is for. The suite is 628 tests, `render-check: OK`, `qr-check: 49 checks, 0 mismatches`,
+> `scripts/spec_check.py` 21/21. The public mirror is `https://github.com/BlackHelio/agent-wallet`, and
+> the catalog PR (one `plugin-catalog/agent-wallet.yaml`, pinned to a full commit) is open for review.
 
 ### The one security caveat worth reading before you fund it
 
 On Bitcoin, EVM and XRP the keys sit inside `walletd`'s sealed payload and are signed in-process: the
 agent's shell cannot reach them. **Monero is different.** RingCT cannot be signed in-process, so the
-spend key lives in a `monero-wallet-rpc` that runs as *your* user, and a shell with your uid can read
-its credentials and call it directly — past the caps, past the PIN. The PIN protects you from an
-injected or confused agent; it does not protect you from a process you already let run as yourself.
-The fix is one `systemd` unit with `User=` pointing at a second account, which needs root once.
-`docs/THREAT-MODEL.md` records this as an open item rather than a closed control — and a red team
-walked it: read `wallet.env`, POST `query_key`, get the 25-word seed back.
+spend key lives in a `monero-wallet-rpc` that runs as *your* user, and while the wallet is unlocked a
+shell with your uid can read the signer's 0600 config (`<wallet home>/signer.conf`) and call it
+directly — past the caps, past the PIN, and without leaving a receipt. The PIN protects you from an
+injected or confused agent; it does not protect you from a process you already let run as yourself,
+and the agent's own terminal is such a process. The fix is one `systemd` unit with `User=` pointing at
+a second account, which needs root once. `docs/THREAT-MODEL.md` records this as an open item rather
+than a closed control — and a red team walked it: read the credentials, POST `query_key`, get the
+25-word seed back.
+
+The login is no longer in `ps` (it is passed as `--config-file`, not `--rpc-login`), which closes the
+free-for-any-local-user copy of it; it does not close the same-uid path, and nothing in-process can.
 
 The `pre_tool_call` guard (it blocks payment-shaped tools from other plugins, and shell commands that
 drive the wallet CLI or the signer) is **advisory**, not a boundary: the boundary is the daemon, the

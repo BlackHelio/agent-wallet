@@ -4335,8 +4335,15 @@ class State:
             return {"started": False, "already": True, "rpc_url": self.settings.monero_rpc_url}
         monero_kinds = [k for k in self.settings.chains_enabled if k.startswith("monero")]
         node_kind = monero_kinds[0] if monero_kinds else "monero-mainnet"
-        node = node_registry.pick(node_kind) or {"url": "http://xmr-node.cakewallet.com:18081",
-                                                "label": "cakewallet"}
+        node = node_registry.pick(node_kind)
+        if node is None:
+            # Nothing answered the probe. Fall back to the first *registry* entry rather than a
+            # hardcoded cleartext URL: the registry is TLS-only, so a node that lies about heights
+            # or balances cannot get in through the back door. Let the signer report the failure.
+            candidates = node_registry.candidates(node_kind)
+            if not candidates:
+                raise WalletError("no_node", f"no public node is configured for {node_kind}")
+            node = candidates[0]
         port = int(params.get("port", signer_mod.DEFAULT_PORT))
         if not self._port_free(port):
             # Two wallets on one machine (two profiles) both default to 38084; the second one has to

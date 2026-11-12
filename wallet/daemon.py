@@ -33,6 +33,50 @@ def _plugin_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+#: The only environment names a `walletd` child inherits. Everything else the agent's process holds —
+#: every provider key, every forge token — used to reach the daemon through `dict(os.environ)`, for a
+#: process whose whole job is to import this plugin and answer on a loopback socket.
+_CHILD_ENV_NAMES = frozenset({
+    "PATH", "HOME", "TMPDIR", "PYTHONPATH",
+    # where the wallet is: the daemon resolves its home from these, and dropping them would silently
+    # serve a different (default) home than the parent asked about
+    "HERMES_HOME", "HERMES_PROFILE", "AGENT_WALLET_HOME",
+    "XDG_STATE_HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME",
+})
+
+#: Prefixes that are this wallet's own configuration rather than a third party's secret: node
+#: overrides (`AGENT_WALLET_RPC_*`, `AGENT_WALLET_ESPLORA_*`, `AGENT_WALLET_MONERO_*`) and the
+#: daemon's own knobs (`WALLETD_LOCK_TIMEOUT`, `WALLETD_DISABLE_CHAINS`).
+_CHILD_ENV_PREFIXES = ("AGENT_WALLET_", "WALLETD_")
+
+#: One-shot secrets for `init` only: they must never be inherited by a long-lived `serve` child.
+_ONE_SHOT_ENV = frozenset({"WALLETD_PASSPHRASE", "WALLETD_PIN"})
+
+
+def child_env(extra: Optional[dict] = None) -> dict:
+    """An explicit, minimal environment for a `walletd` child.
+
+    Built by allow-list, the way `wallet.service` builds its unit's environment: a child gets the
+    wallet's own configuration and the paths it needs, and nothing else. `dict(os.environ)` handed the
+    daemon (and anything it later spawns) every key the agent was holding — an exfiltration surface
+    with no upside, and the reason a compromised daemon could read provider credentials it never uses.
+    """
+    env = {name: value for name, value in os.environ.items()
+           if (name in _CHILD_ENV_NAMES or name.startswith(_CHILD_ENV_PREFIXES))
+           and name not in _ONE_SHOT_ENV}
+    env.setdefault("PATH", "/usr/local/bin:/usr/bin:/bin")
+    if not env.get("HOME"):
+        try:
+            env["HOME"] = str(Path.home())
+        except (RuntimeError, KeyError):   # no HOME and no passwd entry: leave it out
+            pass
+    root = str(_plugin_root())
+    env["PYTHONPATH"] = root + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    if extra:
+        env.update(extra)
+    return env
+
+
 def is_running(home: Optional[Path] = None) -> bool:
     return socket_path(home).exists() and wait_ready(home, seconds=1.0)
 
@@ -79,11 +123,11 @@ def bootstrap(home: Path, passphrase: str, pin: str = "") -> dict:
     home = Path(home)
     home.mkdir(parents=True, exist_ok=True, mode=0o700)
     root = _plugin_root()
-    env = dict(os.environ)
-    env["WALLETD_PASSPHRASE"] = passphrase
+    # The passphrase travels in the child's environment, never argv — and that environment carries
+    # nothing but this wallet's own configuration.
+    env = child_env({"WALLETD_PASSPHRASE": passphrase})
     if pin:
         env["WALLETD_PIN"] = pin
-    env["PYTHONPATH"] = str(root) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
     proc = subprocess.run(  # noqa: S603 — argv list, no shell
         [sys.executable, "-m", "walletd", "--home", str(home), "init"],
         cwd=str(root), env=env, capture_output=True, text=True, timeout=120)
@@ -129,8 +173,9 @@ def start(home: Optional[Path] = None) -> dict:
                            f"(it asks for a passphrase, then a six-digit PIN)"}
 
     root = _plugin_root()
-    env = dict(os.environ)
-    env["PYTHONPATH"] = str(root) + (os.pathsep + env["PYTHONPATH"] if env.get("PYTHONPATH") else "")
+    # Explicit minimal env (see `child_env`): the daemon needs this plugin, its home and its own
+    # settings — not the agent's provider keys.
+    env = child_env()
     # No starter lock here: the daemon itself holds an exclusive flock for its lifetime and refuses
     # to steal a live socket, so the parent only has to spawn it.
 

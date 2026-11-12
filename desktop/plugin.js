@@ -3348,7 +3348,7 @@ const CONTRIBUTIONS = [
 export default {
   id: ID,
   name: 'Agent Wallet',
-  version: '0.9.2',
+  version: '0.9.3',
   defaultEnabled: true,
   /**
    * Register defensively. The Desktop SDK is the one surface that can gain an optional helper

@@ -156,5 +156,31 @@ class EvmSigningTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "rpc_unreachable")
 
 
+class NodeRegistryTests(unittest.TestCase):
+    """A node is the wallet's view of the chain, so its transport is a security property."""
+
+    def test_every_monero_endpoint_is_https(self) -> None:
+        from walletd.chains import nodes
+
+        for kind in nodes.REGISTRY:
+            for node in nodes.candidates(kind):
+                if node["proto"] != "monero":
+                    continue
+                self.assertTrue(node["url"].startswith("https://"),
+                                f"{kind}/{node['label']} is cleartext: a path observer sees which "
+                                f"outputs were queried and a hostile node can lie about balances")
+
+    def test_no_cleartext_fallback_is_hardcoded_outside_the_registry(self) -> None:
+        # The signer's node choice used to fall back to a hardcoded plaintext URL when no probe
+        # answered; that bypassed the registry (and its TLS rule) entirely.
+        source = (Path(__file__).resolve().parents[1] / "walletd" / "state.py").read_text()
+        for line in source.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            self.assertNotIn("http://xmr-node", stripped,
+                             "a cleartext node URL is hardcoded in walletd/state.py")
+
+
 if __name__ == "__main__":
     unittest.main()
